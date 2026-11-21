@@ -81,11 +81,11 @@
       "versions": [
         {
           "version": "1.0.0",
-          "publishTimestamp": 1795266451,
+          "publishTimestamp": 1795266467,
           "source": {
             "type": "git",
             "url": "https://github.com/Thomas1yang/DSH-plugin-devTools.git",
-            "commit": "04df0ab7ef6a068f710e36252a6eab6fac9df8ff",
+            "commit": "f31263a85cbf5d584d3a2e4c4019b27f55e5be72",
             "path": "dsh-toolbox"
           },
           "engines": {}
