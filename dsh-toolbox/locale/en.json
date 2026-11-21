@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Toolbox",
+    "description": "Adds a Toolbox entry to the left sidebar of the DSH Web GUI. The panel shows a card grid; click a card to open its tool. Currently two tools ship: a JSON formatter, which pretty-prints JSON and reports the exact position of a syntax error, and an XML formatter, which indents XML and reports the exact position of a syntax error. Everything runs in this browser — no text leaves your machine — and nothing is stored between visits. Removing the plugin removes the entry and its tools."
+  }
+}
