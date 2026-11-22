@@ -5,11 +5,13 @@
  * card opens that tool in the same panel, so the grid and the tool share one
  * route and the sidebar entry stays the only navigation the user needs.
  *
- * Two tools ship:
+ * Three tools ship:
  *   - a JSON formatter: pretty-prints JSON with a configurable indent and
  *     reports the exact position of a syntax error;
  *   - an XML formatter: indents XML and reports the exact position of a
- *     syntax error.
+ *     syntax error;
+ *   - a JSON comparison: puts two JSON documents side by side and lists
+ *     every way they differ, down to the path of each difference.
  *
  * Everything runs in this browser. No text is sent anywhere, and nothing is
  * persisted between visits: each tool keeps its input in component state only.
@@ -31,6 +33,7 @@ window.__ModuleLoader__.load({
     /** The tool panels live under their own main keys. */
     const TOOL_JSON = 'toolbox-json'
     const TOOL_XML = 'toolbox-xml'
+    const TOOL_COMPARE = 'toolbox-compare'
     /** Largest input one tool accepts, in characters. */
     const MAX_INPUT = 500000
     /** Indent widths the JSON formatter offers. */
@@ -46,17 +49,25 @@ window.__ModuleLoader__.load({
       'card.json.desc': 'Pretty-print a JSON document and see exactly where a syntax error is.',
       'card.xml.title': 'XML formatter',
       'card.xml.desc': 'Indent an XML document and see exactly where a syntax error is.',
+      'card.compare.title': 'JSON comparison',
+      'card.compare.desc': 'Put two JSON documents side by side and see exactly how they differ.',
       'card.open': 'Open',
       'tool.back': 'Back to all tools',
       'tool.json.title': 'JSON formatter',
       'tool.json.desc': 'Paste a JSON document below. The result is formatted with the indent you choose.',
       'tool.xml.title': 'XML formatter',
       'tool.xml.desc': 'Paste an XML document below. The result is indented, with comments and declarations kept in place.',
+      'tool.compare.title': 'JSON comparison',
+      'tool.compare.desc': 'Paste two JSON documents below. The result lists every way they differ, down to the path of each one.',
       'field.input': 'Input',
       'field.output': 'Formatted output',
+      'field.left': 'First document',
+      'field.right': 'Second document',
+      'field.differences': 'Differences',
       'field.indent': 'Indent',
       'field.indentValue': '{count} spaces',
       'action.format': 'Format',
+      'action.compare': 'Compare',
       'action.copy': 'Copy',
       'action.copied': 'Copied',
       'action.clear': 'Clear',
@@ -65,9 +76,22 @@ window.__ModuleLoader__.load({
       'placeholder.xml': '<root>\n  <child>text</child>\n</root>',
       'status.ok': 'Formatted',
       'status.invalid': 'Invalid input',
+      'status.same': 'The two documents are the same.',
+      'status.different': '{count} differences',
+      'status.emptyCompare': 'Paste two documents, or load the sample.',
       'status.empty': 'Nothing to format yet — paste some text, or load the sample.',
       'error.json': 'Invalid JSON: {message}',
       'error.xml': 'Invalid XML: {message}',
+      'error.jsonLeft': 'The first document is not valid JSON: {message}',
+      'error.jsonRight': 'The second document is not valid JSON: {message}',
+      'diff.kindAdded': 'Added',
+      'diff.kindRemoved': 'Removed',
+      'diff.kindChanged': 'Changed',
+      'diff.left': 'First',
+      'diff.right': 'Second',
+      'diff.added': 'only in the second',
+      'diff.removed': 'only in the first',
+      'diff.absent': 'not here',
       'hint.privacy': 'The text never leaves this browser.',
     }
 
@@ -81,17 +105,25 @@ window.__ModuleLoader__.load({
       'card.json.desc': '美化 JSON 文档，并准确定位语法错误。',
       'card.xml.title': 'XML 格式化',
       'card.xml.desc': '缩进 XML 文档，并准确定位语法错误。',
+      'card.compare.title': 'JSON 文本比较',
+      'card.compare.desc': '并排放两份 JSON 文档，看清它们到底哪里不一样。',
       'card.open': '打开',
       'tool.back': '返回全部工具',
       'tool.json.title': 'JSON 格式化',
       'tool.json.desc': '在下方粘贴 JSON 文档，结果会按你选择的缩进宽度格式化。',
       'tool.xml.title': 'XML 格式化',
       'tool.xml.desc': '在下方粘贴 XML 文档，结果会缩进排版，注释与声明保持原位。',
+      'tool.compare.title': 'JSON 文本比较',
+      'tool.compare.desc': '在下方粘贴两份 JSON 文档，结果会列出它们的每一处不同，并给出每处的路径。',
       'field.input': '输入',
       'field.output': '格式化结果',
+      'field.left': '第一份文档',
+      'field.right': '第二份文档',
+      'field.differences': '差异',
       'field.indent': '缩进',
       'field.indentValue': '{count} 个空格',
       'action.format': '格式化',
+      'action.compare': '比较',
       'action.copy': '复制',
       'action.copied': '已复制',
       'action.clear': '清空',
@@ -100,9 +132,22 @@ window.__ModuleLoader__.load({
       'placeholder.xml': '<root>\n  <child>text</child>\n</root>',
       'status.ok': '已格式化',
       'status.invalid': '输入无效',
+      'status.same': '两份文档完全相同。',
+      'status.different': '共 {count} 处不同',
+      'status.emptyCompare': '粘贴两份文档，或载入示例。',
       'status.empty': '还没有内容——粘贴一段文本，或载入示例。',
       'error.json': 'JSON 无效：{message}',
       'error.xml': 'XML 无效：{message}',
+      'error.jsonLeft': '第一份文档不是有效的 JSON：{message}',
+      'error.jsonRight': '第二份文档不是有效的 JSON：{message}',
+      'diff.kindAdded': '新增',
+      'diff.kindRemoved': '删除',
+      'diff.kindChanged': '修改',
+      'diff.left': '第一份',
+      'diff.right': '第二份',
+      'diff.added': '仅第二份有',
+      'diff.removed': '仅第一份有',
+      'diff.absent': '此处没有',
       'hint.privacy': '文本不会离开这个浏览器。',
     }
 
@@ -163,6 +208,22 @@ window.__ModuleLoader__.load({
       ".dtb-btn[data-variant='primary']{background:var(--dsw-alias-button-primary-fill);color:var(--dsw-alias-label-primary-foreground)}",
       ".dtb-btn[data-variant='primary']:hover:not(:disabled){background:var(--dsw-alias-button-primary-hover)}",
       ".dtb-note{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}",
+      // The comparison tool puts its two documents side by side, so each side
+      // gets its own column and the pair collapses to one column on a narrow
+      // window.
+      ".dtb-compare{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}",
+      "@media (max-width:900px){.dtb-compare{grid-template-columns:minmax(0,1fr)}}",
+      ".dtb-diff{margin:0;padding:0;list-style:none;border:0.5px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md);overflow:hidden}",
+      ".dtb-diff:empty{display:none}",
+      ".dtb-diff li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:baseline;padding:8px 12px;border-bottom:1px solid var(--dsw-alias-border-l1);font-size:12.5px;line-height:19px}",
+      ".dtb-diff li:last-child{border-bottom:0}",
+      ".dtb-diff-path{font-family:var(--dsw-font-family-mono,ui-monospace,SFMono-Regular,Menlo,Consolas,monospace);word-break:break-all}",
+      ".dtb-diff-values{display:flex;flex-wrap:wrap;gap:6px;min-width:0}",
+      ".dtb-diff-old,.dtb-diff-new{font-family:var(--dsw-font-family-mono,ui-monospace,SFMono-Regular,Menlo,Consolas,monospace);padding:1px 6px;border-radius:var(--dsw-radius-sm);word-break:break-all}",
+      ".dtb-diff-old{background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 16%,transparent);text-decoration:line-through}",
+      ".dtb-diff-new{background:color-mix(in srgb,var(--dsw-alias-state-success-primary,var(--dsw-alias-brand-primary)) 16%,transparent)}",
+      ".dtb-diff-kind{flex:none;padding:1px 6px;border-radius:var(--dsw-radius-sm);font-size:11px;line-height:16px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}",
+      ".dtb-diff-empty{margin:0;padding:12px;font-size:12.5px;line-height:19px;color:var(--dsw-alias-label-secondary)}",
       ".dtb-badge{flex:none;height:20px;padding:0 8px;border-radius:10px;background:var(--dsw-alias-interactive-bg-hover);font-size:11px;line-height:20px;color:var(--dsw-alias-label-secondary)}",
     ].join('\n')
 
@@ -386,6 +447,287 @@ window.__ModuleLoader__.load({
     ].join('\n')
 
     /* ------------------------------------------------------------------ *
+     * JSON comparison
+     * ------------------------------------------------------------------ */
+
+    /**
+     * How deep the comparison walks before it stops.
+     *
+     * A document can nest without bound, and a deeply nested pair would make
+     * the tool crawl. Past this depth the values are reported as different
+     * rather than followed, which still tells the user that something differs
+     * down there.
+     */
+    const MAX_COMPARE_DEPTH = 64
+
+    /**
+     * How many differences are collected before the list is cut short.
+     */
+    const MAX_DIFFERENCES = 500
+
+    /**
+     * The path of one value inside a document, written the way a JSON path
+     * is usually written.
+     *
+     * The root is `$`, so the path of a key named `a` at the root is `$.a`
+     * and the path of a key named `a` inside a key named `b` is `$.b.a`.
+     * @param parts - the keys walked so far.
+     * @returns the path text.
+     */
+    function pathText(parts) {
+      if (parts.length === 0) return '$'
+      return '$' + parts.map((part) => (typeof part === 'number' ? `[${part}]` : `.${part}`)).join('')
+    }
+
+    /**
+     * Whether two values are the same JSON scalar.
+     *
+     * `NaN` never reaches this function, because `JSON.parse` cannot produce
+     * it, and `null` is compared by identity.
+     * @param left - the value from the first document.
+     * @param right - the value from the second document.
+     * @returns whether the two scalars are equal.
+     */
+    function sameScalar(left, right) {
+      if (left === null || right === null) return left === right
+      if (typeof left === 'number' && typeof right === 'number') return left === right
+      return left === right
+    }
+
+    /**
+     * Whether two values have the same JSON type.
+     * @param left - the value from the first document.
+     * @param right - the value from the second document.
+     * @returns whether the types match.
+     */
+    function sameKind(left, right) {
+      if (left === null) return right === null
+      if (right === null) return false
+      if (Array.isArray(left)) return Array.isArray(right)
+      if (Array.isArray(right)) return false
+      return typeof left === typeof right
+    }
+
+    /**
+     * Whether two parsed JSON values are the same, all the way down.
+     *
+     * This is the plain answer to "are these two documents the same", used
+     * where the difference list must not be built: the depth guard, and the
+     * final answer the tool reports.
+     * @param left - the value from the first document.
+     * @param right - the value from the second document.
+     * @returns whether the two values are the same.
+     */
+    function sameJson(left, right) {
+      if (!sameKind(left, right)) return false
+      if (left === null) return true
+      if (Array.isArray(left)) {
+        if (left.length !== right.length) return false
+        for (let index = 0; index < left.length; index += 1) {
+          if (!sameJson(left[index], right[index])) return false
+        }
+        return true
+      }
+      if (typeof left !== 'object') return left === right
+      const leftKeys = Object.keys(left)
+      const rightKeys = Object.keys(right)
+      if (leftKeys.length !== rightKeys.length) return false
+      for (const key of leftKeys) {
+        if (!Object.prototype.hasOwnProperty.call(right, key)) return false
+        if (!sameJson(left[key], right[key])) return false
+      }
+      return true
+    }
+
+    /**
+     * Compare two parsed JSON values and collect the ways they differ.
+     *
+     * The walk follows both documents together. Two objects are compared key
+     * by key: a key only in one of them is reported as added or removed. Two
+     * arrays are compared position by position, and a length difference is
+     * reported as the extra items being added or removed.
+     * @param left - the value from the first document.
+     * @param right - the value from the second document.
+     * @param differences - the list the findings are appended to.
+     * @param parts - the path walked so far.
+     * @param depth - how deep the walk has gone.
+     * @returns whether the two values are equal.
+     */
+    function compareValues(left, right, differences, parts, depth) {
+      if (differences.length >= MAX_DIFFERENCES) return false
+      if (sameKind(left, right) && sameScalar(left, right)) return true
+
+      // The kinds differ, so no amount of walking will make them match.
+      if (!sameKind(left, right)) {
+        differences.push({
+          kind: 'type',
+          path: pathText(parts),
+          left: describeValue(left),
+          right: describeValue(right),
+        })
+        return false
+      }
+
+      if (depth >= MAX_COMPARE_DEPTH) {
+        // The walk has gone as deep as it goes. Two values that are the same
+        // are still the same, so nothing is reported; two that differ are
+        // reported, because the user needs to know that something down there
+        // is not the same.
+        if (sameJson(left, right)) return true
+        differences.push({
+          kind: 'type',
+          path: pathText(parts),
+          left: describeValue(left),
+          right: describeValue(right),
+        })
+        return false
+      }
+
+      // Two values of the same kind that are not equal are scalars: a number,
+      // a string, a boolean. They have nothing to walk into, so the
+      // difference is reported here. Without this the walk would fall
+      // through to the object branch, where a number has no keys and the two
+      // would wrongly look alike.
+      if (typeof left !== 'object' || typeof right !== 'object') {
+        differences.push({
+          kind: 'type',
+          path: pathText(parts),
+          left: describeValue(left),
+          right: describeValue(right),
+        })
+        return false
+      }
+
+      if (Array.isArray(left)) {
+        const shared = Math.min(left.length, right.length)
+        let equal = true
+        for (let index = 0; index < shared; index += 1) {
+          const same = compareValues(left[index], right[index], differences, parts.concat(index), depth + 1)
+          if (!same) equal = false
+          if (differences.length >= MAX_DIFFERENCES) break
+        }
+        if (left.length > right.length) {
+          equal = false
+          for (let index = shared; index < left.length; index += 1) {
+            differences.push({
+              kind: 'removed',
+              path: pathText(parts.concat(index)),
+              left: describeValue(left[index]),
+              right: '',
+            })
+          }
+        } else if (right.length > left.length) {
+          equal = false
+          for (let index = shared; index < right.length; index += 1) {
+            differences.push({
+              kind: 'added',
+              path: pathText(parts.concat(index)),
+              left: '',
+              right: describeValue(right[index]),
+            })
+          }
+        }
+        return equal
+      }
+
+      // Both are objects.
+      const keys = Array.from(new Set([...Object.keys(left), ...Object.keys(right)]))
+      let equal = true
+      for (const key of keys) {
+        const inLeft = Object.prototype.hasOwnProperty.call(left, key)
+        const inRight = Object.prototype.hasOwnProperty.call(right, key)
+        if (!inLeft) {
+          equal = false
+          differences.push({
+            kind: 'added',
+            path: pathText(parts.concat(key)),
+            left: '',
+            right: describeValue(right[key]),
+          })
+          continue
+        }
+        if (!inRight) {
+          equal = false
+          differences.push({
+            kind: 'removed',
+            path: pathText(parts.concat(key)),
+            left: describeValue(left[key]),
+            right: '',
+          })
+          continue
+        }
+        const same = compareValues(left[key], right[key], differences, parts.concat(key), depth + 1)
+        if (!same) equal = false
+        if (differences.length >= MAX_DIFFERENCES) break
+      }
+      return equal
+    }
+
+    /**
+     * A short description of one value, for the difference list.
+     *
+     * Objects and arrays are described by their size rather than by their
+     * contents, so one line stays one line however large the value is.
+     * @param value - the value to describe.
+     * @returns the description text.
+     */
+    function describeValue(value) {
+      if (value === null) return 'null'
+      if (Array.isArray(value)) return `array(${value.length})`
+      if (typeof value === 'object') return `object(${Object.keys(value).length})`
+      if (typeof value === 'string') return JSON.stringify(value)
+      return String(value)
+    }
+
+    /**
+     * Compare two JSON documents.
+     *
+     * Both sides are parsed first, so a syntax error in either one is
+     * reported with its position instead of a diff that means nothing.
+     * @param leftText - the first document.
+     * @param rightText - the second document.
+     * @returns the comparison result.
+     */
+    function compareJson(leftText, rightText) {
+      let left
+      let right
+      try {
+        left = JSON.parse(leftText)
+      } catch (error) {
+        return { ok: false, side: 'left', message: describeJsonError(error) }
+      }
+      try {
+        right = JSON.parse(rightText)
+      } catch (error) {
+        return { ok: false, side: 'right', message: describeJsonError(error) }
+      }
+      const differences = []
+      compareValues(left, right, differences, [], 0)
+      // The walk reports what differs; the plain answer to "are these the
+      // same" comes from comparing the two documents outright, so a value
+      // the walk stopped short of still counts.
+      const equal = sameJson(left, right)
+      return { ok: true, equal, differences }
+    }
+
+    /** The pair of documents the JSON comparison tool can load. */
+    const JSON_COMPARE_SAMPLE = [
+      JSON.stringify({
+        name: 'example',
+        version: 1,
+        tags: ['alpha', 'beta'],
+        nested: { enabled: true, count: 3 },
+      }, null, 2),
+      JSON.stringify({
+        name: 'example',
+        version: 2,
+        tags: ['alpha', 'beta', 'gamma'],
+        nested: { enabled: true, count: 4 },
+        added: 'new key',
+      }, null, 2),
+    ].join('\n---\n')
+
+    /* ------------------------------------------------------------------ *
      * Components
      * ------------------------------------------------------------------ */
 
@@ -513,6 +855,17 @@ window.__ModuleLoader__.load({
                 desc: t('tool.xml.desc'),
               }))))
       }
+      if (openTool === TOOL_COMPARE) {
+        return h('section', { className: 'dtb-page', 'aria-label': t('tool.compare.title') },
+          h('div', { className: 'dtb-scroll' },
+            h('div', { className: 'dtb-content' },
+              heading,
+              h(CompareTool, {
+                t,
+                title: t('tool.compare.title'),
+                desc: t('tool.compare.desc'),
+              }))))
+      }
 
       return h('section', { className: 'dtb-page', 'aria-label': t('page.title') },
         h('div', { className: 'dtb-scroll' },
@@ -532,6 +885,13 @@ window.__ModuleLoader__.load({
                 desc: t('card.xml.desc'),
                 badge: '< >',
                 onOpen: () => { selectTool(TOOL_XML) },
+              }),
+              h(ToolCard, {
+                t,
+                title: t('card.compare.title'),
+                desc: t('card.compare.desc'),
+                badge: '= ≠',
+                onOpen: () => { selectTool(TOOL_COMPARE) },
               })),
             h('p', { className: 'dtb-note' }, t('page.note')))))
     }
@@ -670,6 +1030,147 @@ window.__ModuleLoader__.load({
             value: output,
             'aria-label': t('field.output'),
           })))
+    }
+
+    /**
+     * The JSON comparison tool: two documents side by side and the list of
+     * the ways they differ.
+     *
+     * The comparison runs when the user asks for it, not on every keystroke:
+     * a large document takes a moment to walk, and doing that on each
+     * character would make the page crawl.
+     * @param props.t - localized text.
+     * @param props.title - the tool title.
+     * @param props.desc - the tool description.
+     * @returns the tool element.
+     */
+    function CompareTool({ t, title, desc }) {
+      const [left, setLeft] = useState('')
+      const [right, setRight] = useState('')
+      const [result, setResult] = useState(null)
+      const [error, setError] = useState('')
+
+      const run = useCallback(() => {
+        const leftText = left.trim()
+        const rightText = right.trim()
+        if (leftText === '' || rightText === '') {
+          setResult(null)
+          setError('')
+          return
+        }
+        const outcome = compareJson(leftText, rightText)
+        if (!outcome.ok) {
+          setResult(null)
+          setError(t(outcome.side === 'left' ? 'error.jsonLeft' : 'error.jsonRight', { message: outcome.message }))
+          return
+        }
+        setResult(outcome)
+        setError('')
+      }, [left, right, t])
+
+      const clear = useCallback(() => {
+        setLeft('')
+        setRight('')
+        setResult(null)
+        setError('')
+      }, [])
+
+      const loadSample = useCallback(() => {
+        const [sampleLeft, sampleRight] = JSON_COMPARE_SAMPLE.split('\n---\n')
+        setLeft(sampleLeft)
+        setRight(sampleRight)
+        setResult(null)
+        setError('')
+      }, [])
+
+      const differences = result === null ? [] : result.differences
+      const statusText = error !== ''
+        ? t('status.invalid')
+        : result === null
+          ? t('status.emptyCompare')
+          : result.equal ? t('status.same') : t('status.different', { count: String(differences.length) })
+
+      const sideLabel = (kind, side) => {
+        if (kind === 'added') return side === 'left' ? t('diff.absent') : t('diff.added')
+        if (kind === 'removed') return side === 'left' ? t('diff.removed') : t('diff.absent')
+        return side === 'left' ? t('diff.left') : t('diff.right')
+      }
+
+      return h('section', { className: 'dtb-tool' },
+        h('div', { className: 'dtb-tool-head' },
+          h('h2', null, title),
+          h('p', null, desc)),
+        h('div', { className: 'dtb-compare' },
+          h('div', { className: 'dtb-row' },
+            h('div', { className: 'dtb-row-head' },
+              h('label', { className: 'dtb-label', htmlFor: 'dtb-compare-left' }, t('field.left'))),
+            h('textarea', {
+              id: 'dtb-compare-left',
+              className: 'dtb-textarea',
+              spellCheck: false,
+              value: left,
+              'aria-invalid': error !== '' ? 'true' : undefined,
+              onChange: (event) => { setLeft(event.target.value) },
+            })),
+          h('div', { className: 'dtb-row' },
+            h('div', { className: 'dtb-row-head' },
+              h('label', { className: 'dtb-label', htmlFor: 'dtb-compare-right' }, t('field.right'))),
+            h('textarea', {
+              id: 'dtb-compare-right',
+              className: 'dtb-textarea',
+              spellCheck: false,
+              value: right,
+              'aria-invalid': error !== '' ? 'true' : undefined,
+              onChange: (event) => { setRight(event.target.value) },
+            }))),
+        h('div', { className: 'dtb-row' },
+          h('div', { className: 'dtb-row-head' },
+            h('span', { className: 'dtb-label' }, t('field.differences')),
+            h('div', { className: 'dtb-inline' },
+              h('span', {
+                className: 'dtb-status',
+                'data-kind': error !== '' ? 'error' : 'idle',
+                role: 'status',
+              }, statusText),
+              h('button', {
+                type: 'button',
+                className: 'dtb-btn',
+                'data-variant': 'primary',
+                disabled: left.trim() === '' || right.trim() === '',
+                onClick: run,
+              }, t('action.compare')),
+              h('button', {
+                type: 'button',
+                className: 'dtb-btn',
+                onClick: loadSample,
+              }, t('action.sample')),
+              h('button', {
+                type: 'button',
+                className: 'dtb-btn',
+                disabled: left === '' && right === '',
+                onClick: clear,
+              }, t('action.clear')))),
+          error === ''
+            ? null
+            : h('p', { className: 'dtb-error', role: 'alert' }, error),
+          result !== null && differences.length === 0
+            ? h('p', { className: 'dtb-diff-empty' }, t('status.same'))
+            : null,
+          differences.length === 0
+            ? null
+            : h('ul', { className: 'dtb-diff' },
+              differences.map((difference, index) => h('li', { key: `${difference.path}-${index}` },
+                h('span', { className: 'dtb-diff-kind' },
+                  t(difference.kind === 'added' ? 'diff.kindAdded' : difference.kind === 'removed' ? 'diff.kindRemoved' : 'diff.kindChanged')),
+                h('div', { className: 'dtb-diff-values' },
+                  h('span', { className: 'dtb-diff-path' }, difference.path),
+                  difference.kind === 'type'
+                    ? h(React.Fragment, null,
+                      h('span', { className: 'dtb-diff-old' }, difference.left),
+                      h('span', { className: 'dtb-diff-new' }, difference.right))
+                    : h(React.Fragment, null,
+                      h('span', { className: 'dtb-diff-old' }, sideLabel(difference.kind, 'left')),
+                      h('span', { className: 'dtb-diff-new' }, sideLabel(difference.kind, 'right')))))))))
     }
 
     /* ------------------------------------------------------------------ *
