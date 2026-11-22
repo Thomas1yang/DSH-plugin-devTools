@@ -49,8 +49,8 @@
         "zh": "工具栏"
       },
       "description": {
-        "en": "Adds a Toolbox entry to the left sidebar of the DSH Web GUI. The panel shows a card grid; click a card to open its tool. Currently three tools ship: a JSON formatter, which pretty-prints JSON and reports the exact position of a syntax error; an XML formatter, which indents XML and reports the exact position of a syntax error; and a JSON comparison, which puts two JSON documents side by side and lists every way they differ, each with its path. Everything runs in this browser — no text leaves your machine — and nothing is stored between visits. Removing the plugin removes the entry and its tools.",
-        "zh": "在 DSH 界面的左侧栏新增「工具栏」入口。面板以卡片形式展示工具，点击卡片进入该工具。目前提供三个工具：JSON 格式化（美化 JSON，并精确报告语法错误的位置）、XML 格式化（缩进 XML，并精确报告语法错误的位置）和 JSON 文本比较（并排放两份 JSON 文档，列出它们的每一处不同，并给出每处的路径）。全部处理都在当前浏览器内完成，内容不会离开你的机器，也不会在下次打开时保留。卸载插件后入口与工具一并移除。"
+        "en": "Adds a Toolbox entry to the left sidebar of the DSH Web GUI. The panel shows a card grid; click a card to open its tool. Currently four tools ship: a JSON formatter, which pretty-prints JSON and reports the exact position of a syntax error; an XML formatter, which indents XML and reports the exact position of a syntax error; a JSON comparison, which puts two JSON documents side by side and lists every way they differ, each with its path; and an XML comparison, which does the same for two XML documents. Everything runs in this browser — no text leaves your machine — and nothing is stored between visits. Removing the plugin removes the entry and its tools.",
+        "zh": "在 DSH 界面的左侧栏新增「工具栏」入口。面板以卡片形式展示工具，点击卡片进入该工具。目前提供四个工具：JSON 格式化（美化 JSON，并精确报告语法错误的位置）、XML 格式化（缩进 XML，并精确报告语法错误的位置）、JSON 文本比较（并排放两份 JSON 文档，列出它们的每一处不同，并给出每处的路径）和 XML 文本比较（对两份 XML 文档做同样的事）。全部处理都在当前浏览器内完成，内容不会离开你的机器，也不会在下次打开时保留。卸载插件后入口与工具一并移除。"
       },
       "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzNiIgaGVpZ2h0PSIzNiIgdmlld0JveD0iMCAwIDM2IDM2Ij4KICA8ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSg0LjYgNC42KSBzY2FsZSgxLjEyKSI+CiAgICA8cmVjdCB4PSIyIiB5PSIyIiB3aWR0aD0iOC42IiBoZWlnaHQ9IjguNiIgcng9IjIuMiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMjQ3YmJmIiBzdHJva2Utd2lkdGg9IjEuNyIvPgogICAgPHJlY3QgeD0iMTMuNCIgeT0iMiIgd2lkdGg9IjguNiIgaGVpZ2h0PSI4LjYiIHJ4PSIyLjIiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzJhOWQ4ZiIgc3Ryb2tlLXdpZHRoPSIxLjciLz4KICAgIDxyZWN0IHg9IjIiIHk9IjEzLjQiIHdpZHRoPSI4LjYiIGhlaWdodD0iOC42IiByeD0iMi4yIiBmaWxsPSJub25lIiBzdHJva2U9IiNkOTliMmIiIHN0cm9rZS13aWR0aD0iMS43Ii8+CiAgICA8cmVjdCB4PSIxMy40IiB5PSIxMy40IiB3aWR0aD0iOC42IiBoZWlnaHQ9IjguNiIgcng9IjIuMiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjYjg1MzZiIiBzdHJva2Utd2lkdGg9IjEuNyIvPgogIDwvZz4KPC9zdmc+Cg==",
       "author": "Thomas1yang",
@@ -81,11 +81,11 @@
       "versions": [
         {
           "version": "1.0.0",
-          "publishTimestamp": 1795347453,
+          "publishTimestamp": 1795387476,
           "source": {
             "type": "git",
             "url": "https://github.com/Thomas1yang/DSH-plugin-devTools.git",
-            "commit": "86423e9fc6c0ec112facef1e5370cb20a4aa3b06",
+            "commit": "9195feba39721727d283a1c8bc0975d451d2be38",
             "path": "dsh-toolbox"
           },
           "engines": {}
