@@ -9,6 +9,7 @@ A DSH bundle that adds a **Toolbox** entry to the left sidebar of the Web GUI. T
 - **JSON formatter** — pretty-prints a JSON document with a 2- or 4-space indent, and reports the exact position of a syntax error when the input is not valid JSON.
 - **XML formatter** — indents an XML document, and reports the exact position of a syntax error when the tags do not nest correctly.
 - **JSON comparison** — puts two JSON documents side by side and lists every way they differ, each with the path of the difference.
+- **XML comparison** — the same for two XML documents: the elements, the attributes, the text and the comments, each with the path of the difference.
 
 ## Usage
 
@@ -17,7 +18,7 @@ A DSH bundle that adds a **Toolbox** entry to the left sidebar of the Web GUI. T
 3. Paste a document, or press **Load sample** to see the tool at work.
 4. Press **Format**. The result appears below, with **Copy** to put it on the clipboard.
 
-For the **JSON comparison**, paste a document into each of the two boxes and press **Compare**. The differences appear below, each with its kind (changed, added or removed), its path, and the value on each side.
+For either comparison, paste a document into each of the two boxes and press **Compare**. The differences appear below, each with its kind (changed, added or removed), its path, and the value on each side.
 
 ## Notes on the formatters
 
@@ -34,6 +35,15 @@ For the **JSON comparison**, paste a document into each of the two boxes and pre
 - The walk stops 64 levels deep so a deeply nested pair cannot make the page crawl. Past that depth the values are reported as different rather than followed.
 - The difference list is cut short at 500 entries, so a pair of very different documents produces a long list rather than an endless one.
 
+## Notes on the XML comparison
+
+- Both documents are parsed into a tree of elements first, so a syntax error in either one is reported with its position and names the side it came from, rather than a diff that would mean nothing.
+- The path of a difference is an XPath-like path: `/catalog/book[2]/title/text()` names one exact value, and `/catalog/book[2]/@id` names one attribute.
+- The attributes are compared by name, so the order they were written in does not matter.
+- The children of an element are compared in order, so a child that moved is reported at the place it stands rather than as a whole subtree changing.
+- Comments, CDATA sections, processing instructions and declarations are kept as part of the tree, so a document that differs only in a comment is reported as different.
+- The parser checks the tag structure itself; it is not a full XML parser and does not validate attributes, entities or namespaces against a schema. A closing tag that does not match the innermost open element, or an element left open, is reported as an error.
+
 ## Storage and limits
 
 - Everything runs in this browser. No text is uploaded, and nothing is stored between visits: each tool keeps its input in component state only, and it is gone when the panel is closed or the page is reloaded.
@@ -43,7 +53,7 @@ For the **JSON comparison**, paste a document into each of the two boxes and pre
 ## Layout
 
 - `index.js` — the Host half. It registers nothing; the bundle exists for its Client module.
-- `client.js` — the Client module: dictionaries, the sidebar entry, the card grid, the two formatters, and the comparison.
+- `client.js` — the Client module: dictionaries, the sidebar entry, the card grid, the two formatters, and the two comparisons.
 - `cordis.patch.yml` — inserts this bundle's plugin row.
 - `locale/*.json` — Plugin Manager title and description (English and Simplified Chinese).
 - `icon.svg` — the bundle's Plugin Manager icon.
@@ -51,7 +61,11 @@ For the **JSON comparison**, paste a document into each of the two boxes and pre
   ```sh
   node test-formatters.mjs
   ```
-- `test-compare.mjs` — a standalone test of the comparison logic, in the same style:
+- `test-compare.mjs` — a standalone test of the JSON comparison logic, in the same style:
   ```sh
   node test-compare.mjs
+  ```
+- `test-compare-xml.mjs` — a standalone test of the XML comparison logic:
+  ```sh
+  node test-compare-xml.mjs
   ```

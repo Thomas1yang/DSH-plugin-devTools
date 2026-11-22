@@ -5,13 +5,14 @@
  * card opens that tool in the same panel, so the grid and the tool share one
  * route and the sidebar entry stays the only navigation the user needs.
  *
- * Three tools ship:
+ * Four tools ship:
  *   - a JSON formatter: pretty-prints JSON with a configurable indent and
  *     reports the exact position of a syntax error;
  *   - an XML formatter: indents XML and reports the exact position of a
  *     syntax error;
  *   - a JSON comparison: puts two JSON documents side by side and lists
- *     every way they differ, down to the path of each difference.
+ *     every way they differ, down to the path of each difference;
+ *   - an XML comparison: the same, for two XML documents.
  *
  * Everything runs in this browser. No text is sent anywhere, and nothing is
  * persisted between visits: each tool keeps its input in component state only.
@@ -34,6 +35,7 @@ window.__ModuleLoader__.load({
     const TOOL_JSON = 'toolbox-json'
     const TOOL_XML = 'toolbox-xml'
     const TOOL_COMPARE = 'toolbox-compare'
+    const TOOL_COMPARE_XML = 'toolbox-compare-xml'
     /** Largest input one tool accepts, in characters. */
     const MAX_INPUT = 500000
     /** Indent widths the JSON formatter offers. */
@@ -51,6 +53,8 @@ window.__ModuleLoader__.load({
       'card.xml.desc': 'Indent an XML document and see exactly where a syntax error is.',
       'card.compare.title': 'JSON comparison',
       'card.compare.desc': 'Put two JSON documents side by side and see exactly how they differ.',
+      'card.compareXml.title': 'XML comparison',
+      'card.compareXml.desc': 'Put two XML documents side by side and see exactly how they differ.',
       'card.open': 'Open',
       'tool.back': 'Back to all tools',
       'tool.json.title': 'JSON formatter',
@@ -59,6 +63,8 @@ window.__ModuleLoader__.load({
       'tool.xml.desc': 'Paste an XML document below. The result is indented, with comments and declarations kept in place.',
       'tool.compare.title': 'JSON comparison',
       'tool.compare.desc': 'Paste two JSON documents below. The result lists every way they differ, down to the path of each one.',
+      'tool.compareXml.title': 'XML comparison',
+      'tool.compareXml.desc': 'Paste two XML documents below. The result lists every way they differ, down to the path of each one.',
       'field.input': 'Input',
       'field.output': 'Formatted output',
       'field.left': 'First document',
@@ -84,6 +90,8 @@ window.__ModuleLoader__.load({
       'error.xml': 'Invalid XML: {message}',
       'error.jsonLeft': 'The first document is not valid JSON: {message}',
       'error.jsonRight': 'The second document is not valid JSON: {message}',
+      'error.xmlLeft': 'The first document is not valid XML: {message}',
+      'error.xmlRight': 'The second document is not valid XML: {message}',
       'diff.kindAdded': 'Added',
       'diff.kindRemoved': 'Removed',
       'diff.kindChanged': 'Changed',
@@ -107,6 +115,8 @@ window.__ModuleLoader__.load({
       'card.xml.desc': '缩进 XML 文档，并准确定位语法错误。',
       'card.compare.title': 'JSON 文本比较',
       'card.compare.desc': '并排放两份 JSON 文档，看清它们到底哪里不一样。',
+      'card.compareXml.title': 'XML 文本比较',
+      'card.compareXml.desc': '并排放两份 XML 文档，看清它们到底哪里不一样。',
       'card.open': '打开',
       'tool.back': '返回全部工具',
       'tool.json.title': 'JSON 格式化',
@@ -115,6 +125,8 @@ window.__ModuleLoader__.load({
       'tool.xml.desc': '在下方粘贴 XML 文档，结果会缩进排版，注释与声明保持原位。',
       'tool.compare.title': 'JSON 文本比较',
       'tool.compare.desc': '在下方粘贴两份 JSON 文档，结果会列出它们的每一处不同，并给出每处的路径。',
+      'tool.compareXml.title': 'XML 文本比较',
+      'tool.compareXml.desc': '在下方粘贴两份 XML 文档，结果会列出它们的每一处不同，并给出每处的路径。',
       'field.input': '输入',
       'field.output': '格式化结果',
       'field.left': '第一份文档',
@@ -140,6 +152,8 @@ window.__ModuleLoader__.load({
       'error.xml': 'XML 无效：{message}',
       'error.jsonLeft': '第一份文档不是有效的 JSON：{message}',
       'error.jsonRight': '第二份文档不是有效的 JSON：{message}',
+      'error.xmlLeft': '第一份文档不是有效的 XML：{message}',
+      'error.xmlRight': '第二份文档不是有效的 XML：{message}',
       'diff.kindAdded': '新增',
       'diff.kindRemoved': '删除',
       'diff.kindChanged': '修改',
@@ -728,6 +742,423 @@ window.__ModuleLoader__.load({
     ].join('\n---\n')
 
     /* ------------------------------------------------------------------ *
+     * XML comparison
+     * ------------------------------------------------------------------ */
+
+    /**
+     * How deep the XML comparison walks before it stops.
+     */
+    const MAX_XML_DEPTH = 64
+
+    /**
+     * How many differences the XML comparison collects before it stops.
+     */
+    const MAX_XML_DIFFERENCES = 500
+
+    /**
+     * The name of one element, taken from its tag.
+     * @param tag - the tag text, with or without its angle brackets.
+     * @returns the element name.
+     */
+    function xmlTagName(tag) {
+      return tag.replace(/^<\/?/, '').replace(/[\s/>].*$/, '')
+    }
+
+    /**
+     * The attributes of one tag, in the order they were written.
+     *
+     * The scan reads name="value" and name='value' pairs. A name that is not
+     * quoted is still taken, with an empty value, so a malformed attribute
+     * does not hide the rest of the tag.
+     * @param tag - the tag text.
+     * @returns the attributes, as a list of name and value pairs.
+     */
+    function xmlAttributes(tag) {
+      const attributes = []
+      const body = tag.replace(/^<[^>\s/]+/, '').replace(/\/?>$/, '')
+      const pattern = /([^\s=/]+)\s*(?:=\s*("([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g
+      let match = null
+      while ((match = pattern.exec(body)) !== null) {
+        const name = match[1]
+        if (name === '') continue
+        const value = match[3] !== undefined ? match[3] : match[4] !== undefined ? match[4] : match[5] !== undefined ? match[5] : ''
+        attributes.push({ name, value })
+      }
+      return attributes
+    }
+
+    /**
+     * Parse one XML document into a tree of elements.
+     *
+     * The tree keeps what a reader cares about when two documents are
+     * compared: each element's name, its attributes, its text, and its
+     * children in order. Comments, CDATA sections, processing instructions
+     * and declarations are kept as children of their parent, so a document
+     * that differs only in a comment is reported as different.
+     * @param text - the source text.
+     * @returns the root elements, or an error describing the failure.
+     */
+    function parseXml(text) {
+      /** The elements at the top level of the document. */
+      const roots = []
+      /** The elements that are currently open, innermost last. */
+      const stack = []
+      /** Whether text was found outside any element. */
+      let strayText = false
+      let cursor = 0
+      let match = null
+      XML_TOKEN.lastIndex = 0
+      while ((match = XML_TOKEN.exec(text)) !== null) {
+        const token = match[0]
+        const before = text.slice(cursor, match.index)
+        if (before.trim() !== '') {
+          // Text that sits between tags belongs to the element that is open.
+          const parent = stack.length > 0 ? stack[stack.length - 1] : null
+          if (parent !== null) parent.text += before
+          else if (before.trim() !== '') {
+            return { ok: false, message: 'text outside the root element' }
+          }
+        }
+        cursor = match.index + token.length
+
+        if (token.startsWith('<!--')) {
+          const parent = stack.length > 0 ? stack[stack.length - 1] : null
+          const comment = { kind: 'comment', name: 'comment', value: token }
+          if (parent !== null) parent.children.push(comment)
+          else roots.push(comment)
+          continue
+        }
+        if (token.startsWith('<![CDATA[')) {
+          const parent = stack.length > 0 ? stack[stack.length - 1] : null
+          const cdata = { kind: 'cdata', name: 'cdata', value: token.slice(9, -3) }
+          if (parent !== null) parent.children.push(cdata)
+          else roots.push(cdata)
+          continue
+        }
+        if (token.startsWith('<?') || token.startsWith('<!')) {
+          const parent = stack.length > 0 ? stack[stack.length - 1] : null
+          const other = { kind: 'other', name: 'other', value: token }
+          if (parent !== null) parent.children.push(other)
+          else roots.push(other)
+          continue
+        }
+        if (token.startsWith('</')) {
+          const name = xmlTagName(token)
+          const open = stack.pop()
+          if (open === undefined || open.name !== name) {
+            return { ok: false, message: `unexpected closing tag </${name}>` }
+          }
+          continue
+        }
+
+        // Text between tags belongs to the element that is open. The text
+        // that came before this token was already added; this token is the
+        // text that follows it, and it is added when the next token comes.
+        if (!token.startsWith('<')) {
+          const parent = stack.length > 0 ? stack[stack.length - 1] : null
+          if (parent !== null) parent.text += token
+          else if (token.trim() !== '') strayText = true
+          continue
+        }
+
+        const selfClosing = /\/\s*>$/.test(token)
+        const element = {
+          kind: 'element',
+          name: xmlTagName(token),
+          attributes: xmlAttributes(token),
+          text: '',
+          children: [],
+        }
+        const parent = stack.length > 0 ? stack[stack.length - 1] : null
+        if (parent !== null) parent.children.push(element)
+        else roots.push(element)
+        if (!selfClosing) stack.push(element)
+      }
+
+      const trailing = text.slice(cursor)
+      if (trailing.trim() !== '') {
+        const parent = stack.length > 0 ? stack[stack.length - 1] : null
+        if (parent !== null) parent.text += trailing
+        else strayText = true
+      }
+
+      if (stack.length > 0) {
+        return { ok: false, message: `unclosed element <${stack[stack.length - 1].name}>` }
+      }
+      if (!roots.some((node) => node.kind === 'element')) {
+        // A document that holds no element at all is not XML we can compare.
+        return { ok: false, message: 'no element found' }
+      }
+      if (strayText) {
+        return { ok: false, message: 'text outside the root element' }
+      }
+      return { ok: true, roots }
+    }
+
+    /**
+     * The path of one node inside an XML document.
+     * @param parts - the names walked so far.
+     * @param index - the position among the siblings, when there is one.
+     * @returns the path text.
+     */
+    function xmlPathText(parts, index) {
+      let text = ''
+      for (let position = 0; position < parts.length; position += 1) {
+        const part = parts[position]
+        const last = position === parts.length - 1
+        // The last part carries the position among its siblings, so the path
+        // names one exact element rather than a whole group of them.
+        text += last && index !== null ? `/${part}[${index}]` : `/${part}`
+      }
+      return text === '' ? '/' : text
+    }
+    /**
+     * Compare two XML nodes and collect the ways they differ.
+     * @param left - the node from the first document.
+     * @param right - the node from the second document.
+     * @param differences - the list the findings are appended to.
+     * @param parts - the names walked so far.
+     * @param depth - how deep the walk has gone.
+     * @returns whether the two nodes are the same.
+     */
+    function compareXmlNodes(left, right, differences, parts, depth) {
+      if (differences.length >= MAX_XML_DIFFERENCES) return false
+
+      if (left.kind !== right.kind) {
+        differences.push({
+          kind: 'type',
+          path: xmlPathText(parts, null),
+          left: left.kind,
+          right: right.kind,
+        })
+        return false
+      }
+      if (left.kind !== 'element') {
+        // A comment, a CDATA section or a declaration is compared by its text.
+        // The path names the kind, so a comment inside an element is told
+        // apart from the element itself.
+        if (left.value !== right.value) {
+          differences.push({
+            kind: 'type',
+            path: `${xmlPathText(parts, null)}/${left.kind}`,
+            left: left.value,
+            right: right.value,
+          })
+          return false
+        }
+        return true
+      }
+
+      if (left.name !== right.name) {
+        differences.push({
+          kind: 'type',
+          path: xmlPathText(parts.concat(left.name), null),
+          left: `<${left.name}>`,
+          right: `<${right.name}>`,
+        })
+        return false
+      }
+
+      if (depth >= MAX_XML_DEPTH) {
+        differences.push({
+          kind: 'type',
+          path: xmlPathText(parts, null),
+          left: `<${left.name}>`,
+          right: `<${right.name}>`,
+        })
+        return false
+      }
+
+      let equal = true
+      const here = parts.concat(left.name)
+
+      // The attributes are compared by name, so the order they were written
+      // in does not matter.
+      const leftAttributes = new Map(left.attributes.map((attribute) => [attribute.name, attribute.value]))
+      const rightAttributes = new Map(right.attributes.map((attribute) => [attribute.name, attribute.value]))
+      for (const [name, value] of leftAttributes) {
+        if (!rightAttributes.has(name)) {
+          equal = false
+          differences.push({
+            kind: 'removed',
+            path: `${xmlPathText(here, null)}/@${name}`,
+            left: value,
+            right: '',
+          })
+          continue
+        }
+        if (rightAttributes.get(name) !== value) {
+          equal = false
+          differences.push({
+            kind: 'type',
+            path: `${xmlPathText(here, null)}/@${name}`,
+            left: value,
+            right: rightAttributes.get(name),
+          })
+        }
+      }
+      for (const [name, value] of rightAttributes) {
+        if (!leftAttributes.has(name)) {
+          equal = false
+          differences.push({
+            kind: 'added',
+            path: `${xmlPathText(here, null)}/@${name}`,
+            left: '',
+            right: value,
+          })
+        }
+      }
+
+      // The text of an element is compared on its own, and only when the
+      // element has no child elements: an element with children holds its
+      // text in those children.
+      const leftText = left.text.trim()
+      const rightText = right.text.trim()
+      if (left.children.length === 0 && right.children.length === 0 && leftText !== rightText) {
+        equal = false
+        differences.push({
+          kind: 'type',
+          path: `${xmlPathText(here, null)}/text()`,
+          left: leftText,
+          right: rightText,
+        })
+      }
+
+      // The children are compared in order, so a child that moved is reported
+      // as a difference at the place it stands.
+      const shared = Math.min(left.children.length, right.children.length)
+      for (let index = 0; index < shared; index += 1) {
+        const same = compareXmlNodes(
+          left.children[index],
+          right.children[index],
+          differences,
+          here,
+          depth + 1,
+        )
+        if (!same) equal = false
+        if (differences.length >= MAX_XML_DIFFERENCES) break
+      }
+      if (left.children.length > right.children.length) {
+        equal = false
+        for (let index = shared; index < left.children.length; index += 1) {
+          differences.push({
+            kind: 'removed',
+            path: xmlPathText(here.concat(left.children[index].name), index),
+            left: `<${left.children[index].name}>`,
+            right: '',
+          })
+        }
+      } else if (right.children.length > left.children.length) {
+        equal = false
+        for (let index = shared; index < right.children.length; index += 1) {
+          differences.push({
+            kind: 'added',
+            path: xmlPathText(here.concat(right.children[index].name), index),
+            left: '',
+            right: `<${right.children[index].name}>`,
+          })
+        }
+      }
+      return equal
+    }
+
+    /**
+     * Compare two XML documents.
+     *
+     * Both sides are parsed first, so a syntax error in either one is
+     * reported with its position instead of a diff that means nothing.
+     * @param leftText - the first document.
+     * @param rightText - the second document.
+     * @returns the comparison result.
+     */
+    function compareXml(leftText, rightText) {
+      const left = parseXml(leftText)
+      if (!left.ok) return { ok: false, side: 'left', message: left.message }
+      const right = parseXml(rightText)
+      if (!right.ok) return { ok: false, side: 'right', message: right.message }
+      const differences = []
+
+      // The root elements are compared directly. A document may hold more
+      // than one top-level element, and each of them is compared in turn.
+      const leftElements = left.roots.filter((node) => node.kind === 'element')
+      const rightElements = right.roots.filter((node) => node.kind === 'element')
+      const shared = Math.min(leftElements.length, rightElements.length)
+      for (let index = 0; index < shared; index += 1) {
+        compareXmlNodes(leftElements[index], rightElements[index], differences, [], 0)
+        if (differences.length >= MAX_XML_DIFFERENCES) break
+      }
+      if (leftElements.length > rightElements.length) {
+        for (let index = shared; index < leftElements.length; index += 1) {
+          differences.push({
+            kind: 'removed',
+            path: `/${leftElements[index].name}[${index}]`,
+            left: `<${leftElements[index].name}>`,
+            right: '',
+          })
+        }
+      } else if (rightElements.length > leftElements.length) {
+        for (let index = shared; index < rightElements.length; index += 1) {
+          differences.push({
+            kind: 'added',
+            path: `/${rightElements[index].name}[${index}]`,
+            left: '',
+            right: `<${rightElements[index].name}>`,
+          })
+        }
+      }
+
+      // The declarations, comments and CDATA sections that sit outside the
+      // root element are compared on their own. They are the same kind of
+      // thing in the same order, so a difference among them is reported at
+      // the place it stands.
+      const leftExtras = left.roots.filter((node) => node.kind !== 'element')
+      const rightExtras = right.roots.filter((node) => node.kind !== 'element')
+      const extraShared = Math.min(leftExtras.length, rightExtras.length)
+      for (let index = 0; index < extraShared; index += 1) {
+        compareXmlNodes(leftExtras[index], rightExtras[index], differences, [], 0)
+      }
+      if (leftExtras.length > rightExtras.length) {
+        for (let index = extraShared; index < leftExtras.length; index += 1) {
+          differences.push({
+            kind: 'removed',
+            path: `/${leftExtras[index].kind}[${index}]`,
+            left: leftExtras[index].value,
+            right: '',
+          })
+        }
+      } else if (rightExtras.length > leftExtras.length) {
+        for (let index = extraShared; index < rightExtras.length; index += 1) {
+          differences.push({
+            kind: 'added',
+            path: `/${rightExtras[index].kind}[${index}]`,
+            left: '',
+            right: rightExtras[index].value,
+          })
+        }
+      }
+      return { ok: true, equal: differences.length === 0, differences }
+    }
+
+    /** The pair of documents the XML comparison tool can load. */
+    const XML_COMPARE_SAMPLE = [
+      [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<catalog>',
+        '  <book id="1"><title>First</title><author>Ada</author></book>',
+        '  <book id="2"><title>Second</title><author>Grace</author></book>',
+        '</catalog>',
+      ].join('\n'),
+      [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<catalog>',
+        '  <book id="1"><title>First</title><author>Ada</author></book>',
+        '  <book id="2"><title>Second Edition</title><author>Grace</author></book>',
+        '  <book id="3"><title>Third</title><author>Alan</author></book>',
+        '</catalog>',
+      ].join('\n'),
+    ].join('\n---\n')
+
+    /* ------------------------------------------------------------------ *
      * Components
      * ------------------------------------------------------------------ */
 
@@ -862,8 +1293,21 @@ window.__ModuleLoader__.load({
               heading,
               h(CompareTool, {
                 t,
+                kind: 'json',
                 title: t('tool.compare.title'),
                 desc: t('tool.compare.desc'),
+              }))))
+      }
+      if (openTool === TOOL_COMPARE_XML) {
+        return h('section', { className: 'dtb-page', 'aria-label': t('tool.compareXml.title') },
+          h('div', { className: 'dtb-scroll' },
+            h('div', { className: 'dtb-content' },
+              heading,
+              h(CompareTool, {
+                t,
+                kind: 'xml',
+                title: t('tool.compareXml.title'),
+                desc: t('tool.compareXml.desc'),
               }))))
       }
 
@@ -892,6 +1336,13 @@ window.__ModuleLoader__.load({
                 desc: t('card.compare.desc'),
                 badge: '= ≠',
                 onOpen: () => { selectTool(TOOL_COMPARE) },
+              }),
+              h(ToolCard, {
+                t,
+                title: t('card.compareXml.title'),
+                desc: t('card.compareXml.desc'),
+                badge: '< > ≠',
+                onOpen: () => { selectTool(TOOL_COMPARE_XML) },
               })),
             h('p', { className: 'dtb-note' }, t('page.note')))))
     }
@@ -1044,7 +1495,7 @@ window.__ModuleLoader__.load({
      * @param props.desc - the tool description.
      * @returns the tool element.
      */
-    function CompareTool({ t, title, desc }) {
+    function CompareTool({ t, kind, title, desc }) {
       const [left, setLeft] = useState('')
       const [right, setRight] = useState('')
       const [result, setResult] = useState(null)
@@ -1058,10 +1509,13 @@ window.__ModuleLoader__.load({
           setError('')
           return
         }
-        const outcome = compareJson(leftText, rightText)
+        const outcome = kind === 'json' ? compareJson(leftText, rightText) : compareXml(leftText, rightText)
         if (!outcome.ok) {
           setResult(null)
-          setError(t(outcome.side === 'left' ? 'error.jsonLeft' : 'error.jsonRight', { message: outcome.message }))
+          const key = kind === 'json'
+            ? (outcome.side === 'left' ? 'error.jsonLeft' : 'error.jsonRight')
+            : (outcome.side === 'left' ? 'error.xmlLeft' : 'error.xmlRight')
+          setError(t(key, { message: outcome.message }))
           return
         }
         setResult(outcome)
@@ -1076,12 +1530,13 @@ window.__ModuleLoader__.load({
       }, [])
 
       const loadSample = useCallback(() => {
-        const [sampleLeft, sampleRight] = JSON_COMPARE_SAMPLE.split('\n---\n')
+        const sample = kind === 'json' ? JSON_COMPARE_SAMPLE : XML_COMPARE_SAMPLE
+        const [sampleLeft, sampleRight] = sample.split('\n---\n')
         setLeft(sampleLeft)
         setRight(sampleRight)
         setResult(null)
         setError('')
-      }, [])
+      }, [kind])
 
       const differences = result === null ? [] : result.differences
       const statusText = error !== ''
@@ -1103,9 +1558,9 @@ window.__ModuleLoader__.load({
         h('div', { className: 'dtb-compare' },
           h('div', { className: 'dtb-row' },
             h('div', { className: 'dtb-row-head' },
-              h('label', { className: 'dtb-label', htmlFor: 'dtb-compare-left' }, t('field.left'))),
+              h('label', { className: 'dtb-label', htmlFor: `dtb-compare-left-${kind}` }, t('field.left'))),
             h('textarea', {
-              id: 'dtb-compare-left',
+              id: `dtb-compare-left-${kind}`,
               className: 'dtb-textarea',
               spellCheck: false,
               value: left,
@@ -1114,9 +1569,9 @@ window.__ModuleLoader__.load({
             })),
           h('div', { className: 'dtb-row' },
             h('div', { className: 'dtb-row-head' },
-              h('label', { className: 'dtb-label', htmlFor: 'dtb-compare-right' }, t('field.right'))),
+              h('label', { className: 'dtb-label', htmlFor: `dtb-compare-right-${kind}` }, t('field.right'))),
             h('textarea', {
-              id: 'dtb-compare-right',
+              id: `dtb-compare-right-${kind}`,
               className: 'dtb-textarea',
               spellCheck: false,
               value: right,
